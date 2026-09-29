@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include <NkbTwinBrandData.h>
 
 namespace
 {
@@ -54,6 +55,11 @@ NkbTwinAudioProcessorEditor::NkbTwinAudioProcessorEditor(NkbTwinAudioProcessor& 
     setLookAndFeel(&ampLookAndFeel);
     setResizable(false, false);
     setSize(900, 560);
+
+    startupSplash.setLogo(juce::Drawable::createFromImageData(
+        NkbTwinBrandData::nkb_twin_logo_svg, NkbTwinBrandData::nkb_twin_logo_svgSize));
+    if (p.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
+        startupSplashFramesRemaining = 72;
 
     for (size_t index = 0; index < ampKnobs.size(); ++index)
     {
@@ -149,6 +155,11 @@ NkbTwinAudioProcessorEditor::NkbTwinAudioProcessorEditor(NkbTwinAudioProcessor& 
     irStatusLabel.setMinimumHorizontalScale(0.75f);
     addAndMakeVisible(irStatusLabel);
 
+    startupSplash.setInterceptsMouseClicks(false, false);
+    startupSplash.setBounds(getLocalBounds());
+    addAndMakeVisible(startupSplash);
+    startupSplash.toFront(false);
+    startupSplash.setVisible(startupSplashFramesRemaining > 0);
     setPage(currentPage);
     updateIRStatus();
     startTimerHz(30);
@@ -471,6 +482,42 @@ void NkbTwinAudioProcessorEditor::paint(juce::Graphics& g)
     drawMeter(g, inputMeterBounds.toFloat(), processor.getInputMeter(), "IN");
     drawMeter(g, outputLeftMeterBounds.toFloat(), processor.getOutputLeftMeter(), "OUT L");
     drawMeter(g, outputRightMeterBounds.toFloat(), processor.getOutputRightMeter(), "OUT R");
+}
+
+void NkbTwinAudioProcessorEditor::StartupSplash::paint(juce::Graphics& g)
+{
+    g.setColour(juce::Colour::fromRGB(12, 16, 22).withAlpha(0.97f));
+    g.fillAll();
+
+    const auto panel = juce::Rectangle<float>(104.0f, 91.0f,
+                                              static_cast<float>(getWidth() - 208),
+                                              static_cast<float>(getHeight() - 182));
+    g.setGradientFill(juce::ColourGradient(juce::Colour::fromRGB(38, 46, 57),
+                                           panel.getX(), panel.getY(),
+                                           juce::Colour::fromRGB(20, 25, 33),
+                                           panel.getRight(), panel.getBottom(), false));
+    g.fillRoundedRectangle(panel, 18.0f);
+    g.setColour(juce::Colour::fromRGB(185, 151, 96).withAlpha(0.82f));
+    g.drawRoundedRectangle(panel, 18.0f, 1.5f);
+    g.setColour(juce::Colour::fromRGB(191, 202, 214).withAlpha(0.26f));
+    g.drawHorizontalLine(407, panel.getX() + 52.0f, panel.getRight() - 52.0f);
+
+    if (logo != nullptr)
+        logo->drawWithin(g, { panel.getX() + 66.0f, panel.getY() + 35.0f,
+                              panel.getWidth() - 132.0f, panel.getHeight() - 105.0f },
+                         juce::RectanglePlacement::centred, 1.0f);
+    else
+    {
+        g.setColour(warmWhite());
+        g.setFont(juce::FontOptions(48.0f, juce::Font::bold));
+        g.drawText("NKB TWIN", 180, 190, 540, 72, juce::Justification::centred);
+    }
+
+    g.setColour(muted());
+    g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+    g.drawText("STANDALONE GUITAR AMPLIFIER", static_cast<int>(panel.getX()), 417,
+               static_cast<int>(panel.getWidth()), 20,
+               juce::Justification::centred);
 }
 
 void NkbTwinAudioProcessorEditor::drawCommonFrame(juce::Graphics& g)
@@ -806,6 +853,7 @@ void NkbTwinAudioProcessorEditor::drawMeter(juce::Graphics& g, juce::Rectangle<f
 
 void NkbTwinAudioProcessorEditor::resized()
 {
+    startupSplash.setBounds(getLocalBounds());
     pageButtons[0].setBounds(290, 16, 105, 34);
     pageButtons[1].setBounds(401, 16, 105, 34);
     pageButtons[2].setBounds(512, 16, 105, 34);
@@ -845,6 +893,15 @@ void NkbTwinAudioProcessorEditor::resized()
 
 void NkbTwinAudioProcessorEditor::timerCallback()
 {
+    if (startupSplashFramesRemaining > 0)
+    {
+        --startupSplashFramesRemaining;
+        startupSplash.setAlpha(juce::jmin(1.0f,
+            static_cast<float>(startupSplashFramesRemaining) / 12.0f));
+        if (startupSplashFramesRemaining == 0)
+            startupSplash.setVisible(false);
+        startupSplash.repaint();
+    }
     repaint(inputMeterBounds);
     repaint(outputLeftMeterBounds);
     repaint(outputRightMeterBounds);

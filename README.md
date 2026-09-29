@@ -29,11 +29,11 @@ Twin Reverbのブラックフェイス系クリーンを参考にした、ギタ
 
 ## VST3版（Cubase）
 
-GitHub Releasesから `NKB-Twin-VST3-v1.1.0-Windows-x64.zip` をダウンロードして展開し、中の `NKB Twin.vst3` フォルダー全体をVST3プラグインの検索場所へコピーしてください。標準のWindows共有フォルダーは `C:\Program Files\Common Files\VST3` です。Cubaseを再スキャンして、オーディオトラックのインサートエフェクト **NKB Twin** として読み込みます。ギターを接続した入力を選び、出力をステレオに設定してください。
+GitHub Releasesから `NKB-Twin-VST3-v1.2.0-Windows-x64.zip` をダウンロードして展開し、中の `NKB Twin.vst3` フォルダー全体をVST3プラグインの検索場所へコピーしてください。標準のWindows共有フォルダーは `C:\Program Files\Common Files\VST3` です。Cubaseを再スキャンして、オーディオトラックのインサートエフェクト **NKB Twin** として読み込みます。ギターを接続した入力を選び、出力をステレオに設定してください。
 
 ## スタンドアロン版
 
-ASIOに対応しています。Standalone版を起動し、ウィンドウ上部の **Options → Audio/MIDI Settings...** で Audio device type を **ASIO** に切り替え、利用するASIOドライバーと入出力チャンネルを選んでください。このPCでは **Komplete Audio 6**、**Realtek ASIO**、**Steinberg built-in ASIO Driver**、**Generic Low Latency ASIO Driver** が列挙されました。ドライバーが一覧にない場合は、そのオーディオインターフェース／機器のASIOドライバーをWindowsにインストールしてください。
+起動時にNKB TWINのロゴを表示します。GitHub Releasesの `NKB-Twin-Standalone-v1.2.0-Windows-x64.zip` を展開し、`NKB Twin.exe` を起動してください。ASIOに対応しています。起動後、ウィンドウ上部の **Options → Audio/MIDI Settings...** で Audio device type を **ASIO** に切り替え、利用するASIOドライバーと入出力チャンネルを選んでください。このPCでは **Komplete Audio 6**、**Realtek ASIO**、**Steinberg built-in ASIO Driver**、**Generic Low Latency ASIO Driver** が列挙されました。ドライバーが一覧にない場合は、そのオーディオインターフェース／機器のASIOドライバーをWindowsにインストールしてください。
 
 **TEST TONE** をオンにすると440 Hzのテスト信号が左右に出ます。画面の **OUT L** と **OUT R** が両方動けば、アプリから左右の出力まで信号が届いています。片側しか動かない場合はデバイス側の出力チャンネル設定を確認してください。両方動くのに片側からしか聞こえない場合は、ASIOの出力割り当て、接続先、ケーブル／ヘッドフォンを確認してください。テスト信号をオフにしてからギターを入力に接続し、入力チャンネルを有効にして演奏します。入力メーターが動かない場合は入力デバイスとチャンネル設定を確認してください。
 

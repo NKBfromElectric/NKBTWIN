@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(NkbTwin VERSION 1.1.0 LANGUAGES C CXX)
+project(NkbTwin VERSION 1.2.0 LANGUAGES C CXX)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -26,6 +26,12 @@ juce_add_plugin(NkbTwin
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     COPY_PLUGIN_AFTER_BUILD FALSE
     FORMATS VST3 Standalone
+)
+
+juce_add_binary_data(NkbTwinBrandData
+    HEADER_NAME NkbTwinBrandData.h
+    NAMESPACE NkbTwinBrandData
+    SOURCES Assets/nkb_twin_logo.svg
 )
 
 juce_generate_juce_header(NkbTwin)
@@ -54,6 +60,7 @@ target_link_libraries(NkbTwin
     PRIVATE
         juce::juce_audio_utils
         juce::juce_dsp
+        NkbTwinBrandData
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags

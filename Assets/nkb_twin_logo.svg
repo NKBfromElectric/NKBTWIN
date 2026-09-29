@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400">
+  <defs>
+    <linearGradient id="frame" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d4bd83"/>
+      <stop offset="0.48" stop-color="#8d7441"/>
+      <stop offset="1" stop-color="#dfc886"/>
+    </linearGradient>
+    <linearGradient id="cabinet" x1="0" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#202a36"/>
+      <stop offset="1" stop-color="#10151c"/>
+    </linearGradient>
+    <radialGradient id="cone" cx="36%" cy="28%" r="78%">
+      <stop offset="0" stop-color="#b8bec0"/>
+      <stop offset="0.42" stop-color="#717d84"/>
+      <stop offset="0.72" stop-color="#36424a"/>
+      <stop offset="1" stop-color="#161d23"/>
+    </radialGradient>
+    <clipPath id="speakerClip">
+      <circle cx="126" cy="201" r="69"/>
+      <circle cx="286" cy="201" r="69"/>
+    </clipPath>
+  </defs>
+  <rect x="10" y="10" width="780" height="380" rx="38" fill="url(#cabinet)" stroke="url(#frame)" stroke-width="5"/>
+  <rect x="22" y="22" width="756" height="356" rx="29" fill="none" stroke="#c1c8cb" stroke-opacity=".24" stroke-width="1.5"/>
+  <g>
+    <circle cx="126" cy="201" r="83" fill="#0a0e12" stroke="#b7bdbe" stroke-width="3"/>
+    <circle cx="286" cy="201" r="83" fill="#0a0e12" stroke="#b7bdbe" stroke-width="3"/>
+    <circle cx="126" cy="201" r="70" fill="url(#cone)" stroke="#c1a76d" stroke-width="2"/>
+    <circle cx="286" cy="201" r="70" fill="url(#cone)" stroke="#c1a76d" stroke-width="2"/>
+    <g clip-path="url(#speakerClip)" stroke="#e0e4df" stroke-opacity=".16" stroke-width="1">
+      <path d="M48 112L205 290M34 135L192 313M81 108L238 286M123 107L280 285M168 108L325 285M214 108L370 285"/>
+      <path d="M48 290L205 112M34 267L192 89M81 294L238 116M123 295L280 117M168 294L325 117M214 294L370 117"/>
+    </g>
+    <circle cx="126" cy="201" r="25" fill="#161d23" stroke="#d1d5d0" stroke-opacity=".7" stroke-width="2"/>
+    <circle cx="286" cy="201" r="25" fill="#161d23" stroke="#d1d5d0" stroke-opacity=".7" stroke-width="2"/>
+    <circle cx="126" cy="201" r="7" fill="#b99b5d"/>
+    <circle cx="286" cy="201" r="7" fill="#b99b5d"/>
+  </g>
+  <path d="M400 68H735" stroke="#b99b5d" stroke-width="2"/>
+  <circle cx="400" cy="68" r="4" fill="#d6c28c"/>
+  <text x="400" y="150" fill="#d8dadd" font-family="Georgia, 'Times New Roman', serif" font-size="49" letter-spacing="15">NKB</text>
+  <text x="394" y="253" fill="#f1eee5" font-family="Georgia, 'Times New Roman', serif" font-size="92" font-weight="bold" letter-spacing="7">TWIN</text>
+  <path d="M400 277H735" stroke="#b99b5d" stroke-width="2"/>
+  <text x="400" y="318" fill="#c5cbd0" font-family="Arial, sans-serif" font-size="16" font-weight="bold" letter-spacing="4">CLEAN GUITAR AMPLIFIER</text>
+  <text x="400" y="351" fill="#9ca6ad" font-family="Arial, sans-serif" font-size="11" letter-spacing="3">NKB AUDIO  •  TWIN SERIES</text>
+</svg>

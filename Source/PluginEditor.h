@@ -29,6 +29,16 @@ private:
                                   bool shouldDrawButtonAsDown) override;
     };
 
+    class StartupSplash final : public juce::Component
+    {
+    public:
+        void setLogo(std::unique_ptr<juce::Drawable> image) { logo = std::move(image); }
+        void paint(juce::Graphics&) override;
+
+    private:
+        std::unique_ptr<juce::Drawable> logo;
+    };
+
     void timerCallback() override;
     void setPage(Page);
     void beginImpulseResponseLoad();
@@ -44,7 +54,9 @@ private:
 
     NkbTwinAudioProcessor& processor;
     AmpLookAndFeel ampLookAndFeel;
+    StartupSplash startupSplash;
     Page currentPage = Page::amp;
+    int startupSplashFramesRemaining = 0;
 
     std::array<juce::Slider, 4> ampKnobs;
     std::array<juce::Label, 4> ampLabels;
