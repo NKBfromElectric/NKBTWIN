@@ -13,7 +13,7 @@ public:
     void resized() override;
 
 private:
-    enum class Page { effects, amp, cabinet };
+    enum class Page { effects, amp, cabinet, reverb };
 
     class AmpLookAndFeel final : public juce::LookAndFeel_V4
     {
@@ -49,6 +49,7 @@ private:
     void drawAmpPage(juce::Graphics&);
     void drawEffectsPage(juce::Graphics&);
     void drawCabinetPage(juce::Graphics&);
+    void drawReverbPage(juce::Graphics&);
     void drawMeter(juce::Graphics&, juce::Rectangle<float>, float, const juce::String&);
     void configureKnob(juce::Slider&, juce::Label&, const juce::String&);
 
@@ -67,13 +68,16 @@ private:
     std::array<juce::Slider, 3> od3Knobs;
     std::array<juce::Label, 3> od3Labels;
     std::array<std::unique_ptr<NkbTwinAudioProcessor::APVTS::SliderAttachment>, 3> od3Attachments;
+    std::array<juce::Slider, 3> reverbKnobs;
+    std::array<juce::Label, 3> reverbLabels;
+    std::array<std::unique_ptr<NkbTwinAudioProcessor::APVTS::SliderAttachment>, 3> reverbAttachments;
 
-    std::array<juce::TextButton, 3> pageButtons;
+    std::array<juce::TextButton, 4> pageButtons;
     juce::ToggleButton brightButton;
     juce::ToggleButton pedalEnableButton;
     juce::ToggleButton od3EnableButton;
     juce::ToggleButton cabinetEnableButton;
-    juce::ToggleButton testToneButton;
+    juce::ToggleButton reverbEnableButton;
     juce::TextButton loadIRButton;
     juce::TextButton clearIRButton;
     juce::TextButton resetButton;
@@ -83,6 +87,7 @@ private:
     std::unique_ptr<NkbTwinAudioProcessor::APVTS::ButtonAttachment> pedalEnableAttachment;
     std::unique_ptr<NkbTwinAudioProcessor::APVTS::ButtonAttachment> od3EnableAttachment;
     std::unique_ptr<NkbTwinAudioProcessor::APVTS::ButtonAttachment> cabinetEnableAttachment;
+    std::unique_ptr<NkbTwinAudioProcessor::APVTS::ButtonAttachment> reverbEnableAttachment;
     std::unique_ptr<juce::FileChooser> fileChooser;
 
     juce::Rectangle<int> inputMeterBounds;

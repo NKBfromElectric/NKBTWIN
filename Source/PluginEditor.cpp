@@ -9,7 +9,9 @@ const std::array<const char*, 3> pedalParameterIds{ "pedalLevel", "pedalDrive", 
 const std::array<const char*, 3> pedalControlLabels{ "LEVEL", "GAIN", "TONE" };
 const std::array<const char*, 3> od3ParameterIds{ "od3Level", "od3Drive", "od3Tone" };
 const std::array<const char*, 3> od3ControlLabels{ "LEVEL", "DRIVE", "TONE" };
-const std::array<const char*, 3> pageNames{ "EFFECTS", "AMP", "CAB" };
+const std::array<const char*, 3> reverbParameterIds{ "reverbMix", "reverbDecay", "reverbTone" };
+const std::array<const char*, 3> reverbControlLabels{ "MIX", "DECAY", "TONE" };
+const std::array<const char*, 4> pageNames{ "EFFECTS", "AMP", "CAB", "REVERB" };
 
 juce::Colour background() { return juce::Colour::fromRGB(15, 18, 24); }
 juce::Colour surface() { return juce::Colour::fromRGB(27, 32, 41); }
@@ -85,12 +87,20 @@ NkbTwinAudioProcessorEditor::NkbTwinAudioProcessorEditor(NkbTwinAudioProcessor& 
             processor.parameters, od3ParameterIds[index], od3Knobs[index]);
     }
 
+    for (size_t index = 0; index < reverbKnobs.size(); ++index)
+    {
+        configureKnob(reverbKnobs[index], reverbLabels[index], reverbControlLabels[index]);
+        reverbAttachments[index] = std::make_unique<NkbTwinAudioProcessor::APVTS::SliderAttachment>(
+            processor.parameters, reverbParameterIds[index], reverbKnobs[index]);
+    }
+
     for (size_t index = 0; index < pageButtons.size(); ++index)
     {
         pageButtons[index].setButtonText(pageNames[index]);
         pageButtons[index].onClick = [this, index]
         {
-            setPage(index == 0 ? Page::effects : index == 1 ? Page::amp : Page::cabinet);
+            setPage(index == 0 ? Page::effects : index == 1 ? Page::amp
+                       : index == 2 ? Page::cabinet : Page::reverb);
         };
         addAndMakeVisible(pageButtons[index]);
     }
@@ -121,21 +131,21 @@ NkbTwinAudioProcessorEditor::NkbTwinAudioProcessorEditor(NkbTwinAudioProcessor& 
     od3EnableAttachment = std::make_unique<NkbTwinAudioProcessor::APVTS::ButtonAttachment>(
         processor.parameters, "od3Enabled", od3EnableButton);
 
-    cabinetEnableButton.setButtonText("USE LOADED IR");
+    reverbEnableButton.setButtonText("REVERB ON");
+    reverbEnableButton.setClickingTogglesState(true);
+    reverbEnableButton.setLookAndFeel(&ampLookAndFeel);
+    addAndMakeVisible(reverbEnableButton);
+    reverbEnableAttachment = std::make_unique<NkbTwinAudioProcessor::APVTS::ButtonAttachment>(
+        processor.parameters, "reverbEnabled", reverbEnableButton);
+
+    cabinetEnableButton.setButtonText("USE IR");
+    cabinetEnableButton.setTooltip("Switch between the loaded IR and the built-in Twin 2x12 cabinet.");
     cabinetEnableButton.setClickingTogglesState(true);
     cabinetEnableButton.setLookAndFeel(&ampLookAndFeel);
     addAndMakeVisible(cabinetEnableButton);
     cabinetEnableAttachment = std::make_unique<NkbTwinAudioProcessor::APVTS::ButtonAttachment>(
         processor.parameters, "irEnabled", cabinetEnableButton);
-
-    testToneButton.setButtonText("TEST TONE");
-    testToneButton.setClickingTogglesState(true);
-    testToneButton.setLookAndFeel(&ampLookAndFeel);
-    testToneButton.onClick = [this]
-    {
-        processor.setTestToneEnabled(testToneButton.getToggleState());
-    };
-    addAndMakeVisible(testToneButton);
+    cabinetEnableButton.onClick = [this] { updateIRStatus(); };
 
     loadIRButton.setButtonText("LOAD IR");
     loadIRButton.onClick = [this] { beginImpulseResponseLoad(); };
@@ -151,8 +161,8 @@ NkbTwinAudioProcessorEditor::NkbTwinAudioProcessorEditor(NkbTwinAudioProcessor& 
 
     irStatusLabel.setJustificationType(juce::Justification::centredLeft);
     irStatusLabel.setColour(juce::Label::textColourId, lettering());
-    irStatusLabel.setFont(juce::FontOptions(12.0f));
-    irStatusLabel.setMinimumHorizontalScale(0.75f);
+    irStatusLabel.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+    irStatusLabel.setMinimumHorizontalScale(0.55f);
     addAndMakeVisible(irStatusLabel);
 
     startupSplash.setInterceptsMouseClicks(false, false);
@@ -173,13 +183,14 @@ NkbTwinAudioProcessorEditor::~NkbTwinAudioProcessorEditor()
         knob.setLookAndFeel(nullptr);
     for (auto& knob : od3Knobs)
         knob.setLookAndFeel(nullptr);
+    for (auto& knob : reverbKnobs)
+        knob.setLookAndFeel(nullptr);
 
-    processor.setTestToneEnabled(false);
     brightButton.setLookAndFeel(nullptr);
     pedalEnableButton.setLookAndFeel(nullptr);
     od3EnableButton.setLookAndFeel(nullptr);
     cabinetEnableButton.setLookAndFeel(nullptr);
-    testToneButton.setLookAndFeel(nullptr);
+    reverbEnableButton.setLookAndFeel(nullptr);
     setLookAndFeel(nullptr);
 }
 
@@ -385,6 +396,7 @@ void NkbTwinAudioProcessorEditor::setPage(Page page)
     const auto showAmp = page == Page::amp;
     const auto showEffects = page == Page::effects;
     const auto showCabinet = page == Page::cabinet;
+    const auto showReverb = page == Page::reverb;
 
     for (auto& knob : ampKnobs) knob.setVisible(showAmp);
     for (auto& label : ampLabels) label.setVisible(showAmp);
@@ -392,10 +404,13 @@ void NkbTwinAudioProcessorEditor::setPage(Page page)
     for (auto& label : pedalLabels) label.setVisible(showEffects);
     for (auto& knob : od3Knobs) knob.setVisible(showEffects);
     for (auto& label : od3Labels) label.setVisible(showEffects);
+    for (auto& knob : reverbKnobs) knob.setVisible(showReverb);
+    for (auto& label : reverbLabels) label.setVisible(showReverb);
     brightButton.setVisible(showAmp);
     pedalEnableButton.setVisible(showEffects);
     od3EnableButton.setVisible(showEffects);
     cabinetEnableButton.setVisible(showCabinet);
+    reverbEnableButton.setVisible(showReverb);
     loadIRButton.setVisible(showCabinet);
     clearIRButton.setVisible(showCabinet);
     irStatusLabel.setVisible(showCabinet);
@@ -404,7 +419,8 @@ void NkbTwinAudioProcessorEditor::setPage(Page page)
     {
         const auto active = (page == Page::effects && index == 0)
                          || (page == Page::amp && index == 1)
-                         || (page == Page::cabinet && index == 2);
+                         || (page == Page::cabinet && index == 2)
+                         || (page == Page::reverb && index == 3);
         pageButtons[index].setColour(juce::TextButton::buttonColourId,
                                      active ? juce::Colour::fromRGB(57, 116, 128) : surface());
         pageButtons[index].setColour(juce::TextButton::textColourOffId, lettering());
@@ -416,8 +432,12 @@ void NkbTwinAudioProcessorEditor::setPage(Page page)
 
 void NkbTwinAudioProcessorEditor::beginImpulseResponseLoad()
 {
+    const auto currentIR = processor.getCabinetImpulseResponseFile();
+    const auto startFolder = currentIR.existsAsFile()
+                                 ? currentIR.getParentDirectory()
+                                 : juce::File::getSpecialLocation(juce::File::userHomeDirectory);
     fileChooser = std::make_unique<juce::FileChooser>(
-        "Load Cabinet Impulse Response", juce::File{}, "*.wav;*.aif;*.aiff");
+        "Load Cabinet Impulse Response", startFolder, "*.wav;*.aif;*.aiff");
     fileChooser->launchAsync(juce::FileBrowserComponent::openMode
                                | juce::FileBrowserComponent::canSelectFiles,
                              [this](const juce::FileChooser& chooser)
@@ -446,11 +466,10 @@ void NkbTwinAudioProcessorEditor::resetDefaults()
 {
     for (const auto* id : { "volume", "treble", "middle", "bass", "bright",
                             "pedalDrive", "pedalTone", "pedalLevel", "pedalEnabled",
-                            "od3Drive", "od3Tone", "od3Level", "od3Enabled", "irEnabled" })
+                            "od3Drive", "od3Tone", "od3Level", "od3Enabled",
+                            "reverbMix", "reverbDecay", "reverbTone", "reverbEnabled", "irEnabled" })
         processor.setParameterToDefault(id);
     processor.clearCabinetImpulseResponse();
-    testToneButton.setToggleState(false, juce::dontSendNotification);
-    processor.setTestToneEnabled(false);
     updateIRStatus();
     repaint();
 }
@@ -462,10 +481,18 @@ void NkbTwinAudioProcessorEditor::updateIRStatus()
     cabinetEnableButton.setEnabled(loaded);
     clearIRButton.setEnabled(loaded);
     if (fileName.isNotEmpty())
-        irStatusLabel.setText("Loaded: " + fileName, juce::dontSendNotification);
+    {
+        const auto activeName = cabinetEnableButton.getToggleState()
+                                    ? "ACTIVE  ·  " : "BYPASSED  ·  ";
+        irStatusLabel.setText(activeName + fileName, juce::dontSendNotification);
+        irStatusLabel.setTooltip(processor.getCabinetImpulseResponseFile().getFullPathName());
+    }
     else
-        irStatusLabel.setText("No custom IR loaded  |  built-in Twin 2x12 voicing active",
+    {
+        irStatusLabel.setText("ACTIVE  ·  BUILT-IN TWIN 2x12",
                               juce::dontSendNotification);
+        irStatusLabel.setTooltip({});
+    }
 }
 
 void NkbTwinAudioProcessorEditor::paint(juce::Graphics& g)
@@ -476,8 +503,10 @@ void NkbTwinAudioProcessorEditor::paint(juce::Graphics& g)
         drawEffectsPage(g);
     else if (currentPage == Page::amp)
         drawAmpPage(g);
-    else
+    else if (currentPage == Page::cabinet)
         drawCabinetPage(g);
+    else
+        drawReverbPage(g);
 
     drawMeter(g, inputMeterBounds.toFloat(), processor.getInputMeter(), "IN");
     drawMeter(g, outputLeftMeterBounds.toFloat(), processor.getOutputLeftMeter(), "OUT L");
@@ -534,19 +563,13 @@ void NkbTwinAudioProcessorEditor::drawCommonFrame(juce::Graphics& g)
     g.setFont(juce::FontOptions(8.5f, juce::Font::bold));
     g.drawText("GUITAR AMP SUITE", 27, 40, 150, 13, juce::Justification::centredLeft);
 
-    g.setColour(juce::Colour::fromRGB(54, 61, 72));
-    g.fillRect(0, 510, getWidth(), 50);
-    g.setColour(juce::Colour::fromRGB(57, 66, 79));
-    g.drawHorizontalLine(510, 0.0f, static_cast<float>(getWidth()));
-    g.setColour(muted());
-    g.setFont(juce::FontOptions(8.0f, juce::Font::bold));
 }
 
 void NkbTwinAudioProcessorEditor::drawAmpPage(juce::Graphics& g)
 {
-    const auto cabinet = juce::Rectangle<float>(22.0f, 84.0f, 856.0f, 416.0f);
+    const auto cabinet = juce::Rectangle<float>(22.0f, 84.0f, 856.0f, 456.0f);
     const auto panel = juce::Rectangle<float>(42.0f, 104.0f, 816.0f, 108.0f);
-    const auto grille = juce::Rectangle<float>(42.0f, 222.0f, 816.0f, 260.0f);
+    const auto grille = juce::Rectangle<float>(42.0f, 222.0f, 816.0f, 302.0f);
 
     // Black textured cabinet shell and nickel corner caps.
     g.setColour(juce::Colours::black.withAlpha(0.75f));
@@ -562,15 +585,15 @@ void NkbTwinAudioProcessorEditor::drawAmpPage(juce::Graphics& g)
     g.reduceClipRegion(cabinetMask);
     g.setColour(juce::Colour::fromRGB(158, 163, 164).withAlpha(0.06f));
     for (int x = 27; x < 874; x += 4)
-        g.drawVerticalLine(x, 85.0f, 500.0f);
+        g.drawVerticalLine(x, 85.0f, 539.0f);
     g.restoreState();
     g.setColour(juce::Colour::fromRGB(118, 123, 126));
     g.drawRoundedRectangle(cabinet.reduced(2.0f), 16.0f, 1.0f);
 
     for (const auto corner : { juce::Rectangle<float>(27, 88, 22, 26),
                                juce::Rectangle<float>(851, 88, 22, 26),
-                               juce::Rectangle<float>(27, 470, 22, 26),
-                               juce::Rectangle<float>(851, 470, 22, 26) })
+                               juce::Rectangle<float>(27, 510, 22, 26),
+                               juce::Rectangle<float>(851, 510, 22, 26) })
     {
         g.setColour(juce::Colour::fromRGB(168, 172, 171));
         g.fillRoundedRectangle(corner, 4.0f);
@@ -635,7 +658,7 @@ void NkbTwinAudioProcessorEditor::drawAmpPage(juce::Graphics& g)
     juce::Path grilleMask;
     grilleMask.addRoundedRectangle(grille.reduced(1.0f), 3.0f);
     g.reduceClipRegion(grilleMask);
-    for (int y = 223; y < 482; y += 4)
+    for (int y = 223; y < 524; y += 4)
     {
         g.setColour(juce::Colour::fromRGB(231, 231, 220).withAlpha(0.30f));
         g.drawHorizontalLine(y, 42.0f, 858.0f);
@@ -645,9 +668,9 @@ void NkbTwinAudioProcessorEditor::drawAmpPage(juce::Graphics& g)
     for (int x = 43; x < 858; x += 7)
     {
         g.setColour(juce::Colour::fromRGB(236, 234, 219).withAlpha(0.18f));
-        g.drawVerticalLine(x, 222.0f, 482.0f);
+        g.drawVerticalLine(x, 222.0f, 524.0f);
         g.setColour(juce::Colour::fromRGB(22, 25, 28).withAlpha(0.20f));
-        g.drawVerticalLine(x + 2, 222.0f, 482.0f);
+        g.drawVerticalLine(x + 2, 222.0f, 524.0f);
     }
     g.restoreState();
     g.setColour(juce::Colour::fromRGB(204, 208, 202));
@@ -689,7 +712,7 @@ void NkbTwinAudioProcessorEditor::drawEffectsPage(juce::Graphics& g)
     {
         g.saveState();
         g.addTransform(juce::AffineTransform::translation(xOffset, 0.0f));
-        const auto pedal = juce::Rectangle<float>(324.0f, 78.0f, 252.0f, 424.0f);
+        const auto pedal = juce::Rectangle<float>(324.0f, 78.0f, 252.0f, 456.0f);
         const auto edge = isOD3 ? juce::Colour::fromRGB(126, 91, 0)
                                 : juce::Colour::fromRGB(108, 190, 229);
         const auto main = isOD3 ? juce::Colour::fromRGB(255, 194, 0)
@@ -714,14 +737,14 @@ void NkbTwinAudioProcessorEditor::drawEffectsPage(juce::Graphics& g)
         g.reduceClipRegion(bodyMask);
         g.setColour((isOD3 ? juce::Colour::fromRGB(255, 246, 183)
                            : juce::Colour::fromRGB(190, 225, 241)).withAlpha(0.14f));
-        for (int y = 84; y < 496; y += 5)
+        for (int y = 84; y < 528; y += 5)
             g.drawHorizontalLine(y, pedal.getX() + 9.0f, pedal.getRight() - 9.0f);
         g.restoreState();
 
         for (const auto screw : { juce::Point<float>{ 337.0f, 92.0f },
                                   juce::Point<float>{ 563.0f, 92.0f },
-                                  juce::Point<float>{ 337.0f, 488.0f },
-                                  juce::Point<float>{ 563.0f, 488.0f } })
+                                  juce::Point<float>{ 337.0f, 526.0f },
+                                  juce::Point<float>{ 563.0f, 526.0f } })
         {
             g.setColour((isOD3 ? juce::Colour::fromRGB(116, 85, 0)
                                : juce::Colour::fromRGB(9, 44, 77)).withAlpha(0.58f));
@@ -787,13 +810,13 @@ void NkbTwinAudioProcessorEditor::drawEffectsPage(juce::Graphics& g)
 
 void NkbTwinAudioProcessorEditor::drawCabinetPage(juce::Graphics& g)
 {
-    auto card = juce::Rectangle<float>(34.0f, 84.0f, 832.0f, 410.0f);
+    auto card = juce::Rectangle<float>(34.0f, 82.0f, 832.0f, 456.0f);
     g.setColour(surface());
     g.fillRoundedRectangle(card, 13.0f);
     g.setColour(juce::Colour::fromRGB(62, 74, 88));
     g.drawRoundedRectangle(card, 13.0f, 1.0f);
 
-    auto cab = juce::Rectangle<float>(76.0f, 112.0f, 315.0f, 352.0f);
+    auto cab = juce::Rectangle<float>(64.0f, 120.0f, 328.0f, 356.0f);
     g.setGradientFill(juce::ColourGradient(juce::Colour::fromRGB(91, 59, 40),
                                            cab.getX(), cab.getY(),
                                            juce::Colour::fromRGB(42, 33, 29),
@@ -801,45 +824,60 @@ void NkbTwinAudioProcessorEditor::drawCabinetPage(juce::Graphics& g)
     g.fillRoundedRectangle(cab, 14.0f);
     g.setColour(juce::Colour::fromRGB(169, 130, 83));
     g.drawRoundedRectangle(cab.reduced(3.0f), 11.0f, 1.2f);
-    drawSpeaker(g, { 111.0f, 149.0f, 112.0f, 112.0f });
-    drawSpeaker(g, { 244.0f, 149.0f, 112.0f, 112.0f });
-    drawSpeaker(g, { 111.0f, 290.0f, 112.0f, 112.0f });
-    drawSpeaker(g, { 244.0f, 290.0f, 112.0f, 112.0f });
+    drawSpeaker(g, { 92.0f, 203.0f, 112.0f, 112.0f });
+    drawSpeaker(g, { 246.0f, 203.0f, 112.0f, 112.0f });
+    g.setColour(juce::Colour::fromRGB(115, 95, 76).withAlpha(0.42f));
+    g.drawHorizontalLine(365, 87.0f, 369.0f);
     g.setColour(lettering());
-    g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-    g.drawText("TWIN 2x12", 120, 429, 225, 17, juce::Justification::centred);
+    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    g.drawText("TWIN 2x12", 99, 388, 258, 20, juce::Justification::centred);
+    g.setColour(muted());
+    g.setFont(juce::FontOptions(9.0f));
+    g.drawText("D120 MIX-INSPIRED BUILT-IN VOICING", 79, 415, 298, 16,
+               juce::Justification::centred);
 
     g.setColour(lettering());
     g.setFont(juce::FontOptions(22.0f, juce::Font::bold));
-    g.drawText("CABINET", 445, 116, 350, 31, juce::Justification::centredLeft);
+    g.drawText("CABINET", 422, 103, 390, 31, juce::Justification::centredLeft);
     g.setColour(muted());
     g.setFont(juce::FontOptions(10.0f));
-    g.drawText("Twin 2x12 speaker voicing is active by default.", 447, 151, 350, 20,
+    g.drawText("Twin 2x12 speaker response, with a loaded IR option.", 424, 139, 390, 20,
                juce::Justification::centredLeft);
     g.setColour(juce::Colour::fromRGB(66, 78, 91));
-    g.drawHorizontalLine(185, 447.0f, 821.0f);
+    g.drawHorizontalLine(172, 424.0f, 832.0f);
 
+    const auto irPanel = juce::Rectangle<float>(414.0f, 185.0f, 428.0f, 323.0f);
+    g.setColour(juce::Colour::fromRGB(21, 26, 34));
+    g.fillRoundedRectangle(irPanel, 10.0f);
+    g.setColour(juce::Colour::fromRGB(66, 78, 91));
+    g.drawRoundedRectangle(irPanel, 10.0f, 1.0f);
     g.setColour(accent());
     g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-    g.drawText("CUSTOM IMPULSE RESPONSE", 447, 204, 350, 17, juce::Justification::centredLeft);
+    g.drawText("CUSTOM IMPULSE RESPONSE", 437, 202, 380, 17, juce::Justification::centredLeft);
     g.setColour(muted());
     g.setFont(juce::FontOptions(9.0f));
-    g.drawFittedText("Load a mono or stereo cabinet IR in WAV or AIFF format.", 447, 224, 350, 35,
+    g.drawFittedText("Browse for a mono or stereo cabinet capture in WAV or AIFF format."
+                     " A custom IR replaces the built-in speaker model.", 437, 225, 380, 34,
                      juce::Justification::topLeft, 2);
-    g.drawFittedText("When enabled, it replaces the built-in speaker voicing.", 447, 259, 350, 30,
-                     juce::Justification::topLeft, 2);
+    g.setColour(juce::Colour::fromRGB(31, 37, 47));
+    g.fillRoundedRectangle(437.0f, 272.0f, 382.0f, 58.0f, 6.0f);
+    g.setColour(juce::Colour::fromRGB(57, 67, 80));
+    g.drawRoundedRectangle(437.0f, 272.0f, 382.0f, 58.0f, 6.0f, 1.0f);
+    g.setColour(muted());
+    g.setFont(juce::FontOptions(8.0f, juce::Font::bold));
+    g.drawText("ACTIVE CABINET", 451, 279, 350, 12, juce::Justification::centredLeft);
 }
 
 void NkbTwinAudioProcessorEditor::drawMeter(juce::Graphics& g, juce::Rectangle<float> bounds,
                                              float level, const juce::String& label)
 {
     g.setColour(lettering());
-    g.setFont(juce::FontOptions(8.0f, juce::Font::bold));
-    g.drawText(label, bounds.removeFromLeft(43.0f).toNearestInt(), juce::Justification::centredLeft);
+    g.setFont(juce::FontOptions(7.0f, juce::Font::bold));
+    g.drawText(label, bounds.removeFromTop(13.0f).toNearestInt(), juce::Justification::centred);
 
     g.setColour(juce::Colour::fromRGB(9, 12, 16));
-    g.fillRoundedRectangle(bounds, 3.0f);
-    const auto usable = bounds.reduced(2.0f, 2.0f);
+    g.fillRoundedRectangle(bounds.reduced(3.0f, 4.0f), 3.0f);
+    const auto usable = bounds.reduced(5.0f, 6.0f);
     const auto normalized = juce::jlimit(0.0f, 1.0f, level * 3.5f);
     const auto barWidth = usable.getWidth() * normalized;
     if (barWidth > 0.5f)
@@ -851,14 +889,78 @@ void NkbTwinAudioProcessorEditor::drawMeter(juce::Graphics& g, juce::Rectangle<f
     }
 }
 
+void NkbTwinAudioProcessorEditor::drawReverbPage(juce::Graphics& g)
+{
+    const auto card = juce::Rectangle<float>(34.0f, 82.0f, 832.0f, 456.0f);
+    g.setColour(surface());
+    g.fillRoundedRectangle(card, 13.0f);
+    g.setColour(juce::Colour::fromRGB(62, 74, 88));
+    g.drawRoundedRectangle(card, 13.0f, 1.0f);
+
+    g.setColour(lettering());
+    g.setFont(juce::FontOptions(22.0f, juce::Font::bold));
+    g.drawText("REVERB", 64, 104, 340, 31, juce::Justification::centredLeft);
+    g.setColour(muted());
+    g.setFont(juce::FontOptions(10.0f));
+    g.drawText("Stereo ambience after the cabinet", 66, 139, 340, 20,
+               juce::Justification::centredLeft);
+
+    const auto tank = juce::Rectangle<float>(66.0f, 181.0f, 304.0f, 267.0f);
+    g.setGradientFill(juce::ColourGradient(juce::Colour::fromRGB(65, 73, 80),
+                                           tank.getX(), tank.getY(),
+                                           juce::Colour::fromRGB(26, 31, 39),
+                                           tank.getRight(), tank.getBottom(), false));
+    g.fillRoundedRectangle(tank, 12.0f);
+    g.setColour(juce::Colour::fromRGB(125, 139, 150));
+    g.drawRoundedRectangle(tank.reduced(2.0f), 10.0f, 1.2f);
+    g.setColour(juce::Colour::fromRGB(180, 191, 196).withAlpha(0.18f));
+    for (int y = 202; y < 428; y += 9)
+        g.drawHorizontalLine(y, 82.0f, 354.0f);
+
+    juce::Path springs;
+    springs.startNewSubPath(94.0f, 305.0f);
+    for (int loop = 0; loop < 5; ++loop)
+    {
+        const auto x = 94.0f + static_cast<float>(loop) * 48.0f;
+        springs.cubicTo(x + 9.0f, 276.0f, x + 27.0f, 276.0f, x + 36.0f, 305.0f);
+        springs.cubicTo(x + 45.0f, 334.0f, x + 63.0f, 334.0f, x + 72.0f, 305.0f);
+    }
+    g.setColour(juce::Colour::fromRGB(194, 171, 126));
+    g.strokePath(springs, juce::PathStrokeType(2.0f));
+    g.setColour(juce::Colour::fromRGB(105, 116, 124));
+    g.drawLine(90.0f, 242.0f, 348.0f, 242.0f, 1.0f);
+    g.drawLine(90.0f, 368.0f, 348.0f, 368.0f, 1.0f);
+    g.setColour(muted());
+    g.setFont(juce::FontOptions(8.5f, juce::Font::bold));
+    g.drawText("POST-CAB REVERB", 92, 393, 254, 15, juce::Justification::centred);
+
+    g.setColour(juce::Colour::fromRGB(31, 37, 47));
+    g.fillRoundedRectangle(406.0f, 184.0f, 436.0f, 265.0f, 10.0f);
+    g.setColour(juce::Colour::fromRGB(66, 78, 91));
+    g.drawRoundedRectangle(406.0f, 184.0f, 436.0f, 265.0f, 10.0f, 1.0f);
+    g.setColour(lettering());
+    g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
+    g.drawText("ROOM & TAIL", 424, 199, 390, 18, juce::Justification::centredLeft);
+    g.setColour(muted());
+    g.setFont(juce::FontOptions(9.0f));
+    g.drawText("Set the amount, decay, and high-frequency damping.",
+               424, 221, 390, 18, juce::Justification::centredLeft);
+    g.setColour(juce::Colour::fromRGB(66, 78, 91));
+    g.drawHorizontalLine(246, 424.0f, 824.0f);
+    g.setColour(muted());
+    g.setFont(juce::FontOptions(9.0f));
+    g.drawText("The reverb is placed after the cabinet and is off by default.",
+               424, 464, 398, 24, juce::Justification::centredLeft);
+}
+
 void NkbTwinAudioProcessorEditor::resized()
 {
     startupSplash.setBounds(getLocalBounds());
-    pageButtons[0].setBounds(290, 16, 105, 34);
-    pageButtons[1].setBounds(401, 16, 105, 34);
-    pageButtons[2].setBounds(512, 16, 105, 34);
-    testToneButton.setBounds(700, 18, 94, 30);
-    resetButton.setBounds(808, 18, 64, 30);
+    pageButtons[0].setBounds(210, 16, 80, 34);
+    pageButtons[1].setBounds(298, 16, 80, 34);
+    pageButtons[2].setBounds(386, 16, 80, 34);
+    pageButtons[3].setBounds(474, 16, 80, 34);
+    resetButton.setBounds(811, 18, 68, 30);
 
     const std::array<int, 4> ampXs{ 205, 291, 377, 463 };
     for (size_t index = 0; index < ampKnobs.size(); ++index)
@@ -867,6 +969,14 @@ void NkbTwinAudioProcessorEditor::resized()
         ampKnobs[index].setBounds(ampXs[index], 112, 80, 76);
     }
     brightButton.setBounds(151, 133, 22, 28);
+
+    const std::array<int, 3> reverbXs{ 443, 557, 671 };
+    for (size_t index = 0; index < reverbKnobs.size(); ++index)
+    {
+        reverbKnobs[index].setBounds(reverbXs[index], 258, 92, 86);
+        reverbLabels[index].setBounds(reverbXs[index] - 2, 344, 96, 16);
+    }
+    reverbEnableButton.setBounds(510, 394, 224, 40);
 
     pedalKnobs[0].setBounds(191, 126, 92, 86);
     pedalKnobs[1].setBounds(321, 126, 92, 86);
@@ -878,17 +988,19 @@ void NkbTwinAudioProcessorEditor::resized()
         label.setVisible(false); // The compact enclosure carries its own silkscreen labels.
     for (auto& label : od3Labels)
         label.setVisible(false);
-    pedalEnableButton.setBounds(266, 439, 72, 54);
-    od3EnableButton.setBounds(562, 439, 72, 54);
+    pedalEnableButton.setBounds(266, 467, 72, 54);
+    od3EnableButton.setBounds(562, 467, 72, 54);
 
-    loadIRButton.setBounds(447, 314, 137, 36);
-    clearIRButton.setBounds(594, 314, 86, 36);
-    cabinetEnableButton.setBounds(447, 365, 233, 34);
-    irStatusLabel.setBounds(447, 414, 365, 30);
+    loadIRButton.setButtonText("BROWSE IR");
+    clearIRButton.setButtonText("CLEAR");
+    loadIRButton.setBounds(437, 350, 126, 36);
+    clearIRButton.setBounds(570, 350, 76, 36);
+    cabinetEnableButton.setBounds(654, 350, 165, 36);
+    irStatusLabel.setBounds(451, 297, 354, 24);
 
-    inputMeterBounds = { 30, 531, 260, 15 };
-    outputLeftMeterBounds = { 306, 531, 260, 15 };
-    outputRightMeterBounds = { 610, 531, 260, 15 };
+    inputMeterBounds = { 588, 15, 58, 38 };
+    outputLeftMeterBounds = { 650, 15, 58, 38 };
+    outputRightMeterBounds = { 712, 15, 58, 38 };
 }
 
 void NkbTwinAudioProcessorEditor::timerCallback()

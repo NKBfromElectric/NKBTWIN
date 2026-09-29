@@ -20,6 +20,7 @@ public:
     bool loadCabinetImpulseResponse(const juce::File& file);
     void clearCabinetImpulseResponse();
     juce::String getCabinetImpulseResponseName() const;
+    juce::File getCabinetImpulseResponseFile() const { return juce::File(cabinetIRPath); }
     bool hasCabinetImpulseResponse() const noexcept
     {
         return cabinetIRLoaded.load(std::memory_order_relaxed);
@@ -33,7 +34,7 @@ public:
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.0; }
+    double getTailLengthSeconds() const override { return 4.0; }
 
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
@@ -48,10 +49,6 @@ public:
     float getInputMeter() const noexcept { return inputMeter.load(std::memory_order_relaxed); }
     float getOutputLeftMeter() const noexcept { return outputLeftMeter.load(std::memory_order_relaxed); }
     float getOutputRightMeter() const noexcept { return outputRightMeter.load(std::memory_order_relaxed); }
-    void setTestToneEnabled(bool enabled) noexcept
-    {
-        testToneEnabled.store(enabled, std::memory_order_relaxed);
-    }
 
 private:
     struct ChannelState
@@ -79,6 +76,7 @@ private:
     static float dbToGain(float db) noexcept;
 
     std::array<ChannelState, 2> channelStates{};
+    std::array<juce::dsp::IIR::Filter<float>, 5> builtInCabinetEq;
     juce::dsp::Convolution cabinetConvolution;
     juce::AudioBuffer<float> builtInCabinetBuffer;
     juce::AudioBuffer<float> cabinetBlendBuffer;
@@ -99,9 +97,9 @@ private:
     float od3BufferCoefficient = 0.0f;
     float driveToneCoefficient = 0.0f;
     float od3ToneCoefficient = 0.0f;
-    float testToneSampleRate = 44100.0f;
-    float testTonePhase = 0.0f;
     juce::String cabinetIRPath;
+    juce::Reverb postCabinetReverb;
+    juce::AudioBuffer<float> reverbBuffer;
 
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> ampDrive;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> ampVolume;
@@ -118,10 +116,10 @@ private:
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> od3Level;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> od3Mix;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> cabinetIRMix;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> reverbMix;
     std::atomic<float> inputMeter{ 0.0f };
     std::atomic<float> outputLeftMeter{ 0.0f };
     std::atomic<float> outputRightMeter{ 0.0f };
-    std::atomic<bool> testToneEnabled{ false };
     std::atomic<bool> cabinetIRLoaded{ false };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(NkbTwinAudioProcessor)

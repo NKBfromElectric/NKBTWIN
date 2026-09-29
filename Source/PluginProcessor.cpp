@@ -19,6 +19,10 @@ constexpr auto od3DriveId = "od3Drive";
 constexpr auto od3ToneId = "od3Tone";
 constexpr auto od3LevelId = "od3Level";
 constexpr auto od3EnabledId = "od3Enabled";
+constexpr auto reverbMixId = "reverbMix";
+constexpr auto reverbDecayId = "reverbDecay";
+constexpr auto reverbToneId = "reverbTone";
+constexpr auto reverbEnabledId = "reverbEnabled";
 constexpr auto irEnabledId = "irEnabled";
 constexpr auto cabinetIRPathProperty = "cabinetIRPath";
 constexpr auto stateTag = "NKB_TWIN_STATE_V4";
@@ -85,6 +89,14 @@ NkbTwinAudioProcessor::APVTS::ParameterLayout NkbTwinAudioProcessor::createParam
         juce::ParameterID{ od3LevelId, 1 }, "OverDrive Level", knobRange, 5.0f));
     layout.add(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID{ od3EnabledId, 1 }, "OverDrive On", false));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ reverbMixId, 1 }, "Reverb Mix", knobRange, 5.0f));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ reverbDecayId, 1 }, "Reverb Decay", knobRange, 5.0f));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ reverbToneId, 1 }, "Reverb Tone", knobRange, 5.0f));
+    layout.add(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{ reverbEnabledId, 1 }, "Reverb On", false));
     layout.add(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID{ irEnabledId, 1 }, "Custom IR On", false));
 
@@ -100,15 +112,14 @@ void NkbTwinAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock
 {
     const auto rate = juce::jmax(1.0, sampleRate);
     const auto maxBlockSize = static_cast<juce::uint32>(juce::jmax(1, samplesPerBlock));
-    testToneSampleRate = static_cast<float>(rate);
     lowSplitCoefficient = onePoleCoefficient(220.0f, rate);
     highSplitCoefficient = onePoleCoefficient(1800.0f, rate);
     brightCoefficient = onePoleCoefficient(2700.0f, rate);
     speakerBassCoefficient = onePoleCoefficient(130.0f, rate);
-    speakerLowMidCoefficient = onePoleCoefficient(650.0f, rate);
-    speakerMidCoefficient = onePoleCoefficient(1700.0f, rate);
-    speakerPresenceCoefficient = onePoleCoefficient(3500.0f, rate);
-    speakerAirCoefficient = onePoleCoefficient(5600.0f, rate);
+    speakerLowMidCoefficient = onePoleCoefficient(360.0f, rate);
+    speakerMidCoefficient = onePoleCoefficient(1050.0f, rate);
+    speakerPresenceCoefficient = onePoleCoefficient(2400.0f, rate);
+    speakerAirCoefficient = onePoleCoefficient(5000.0f, rate);
     rumbleCoefficient = onePoleCoefficient(45.0f, rate);
     pedalInputCoefficient = onePoleCoefficient(36.0f, rate);
     pedalStackLowCoefficient = onePoleCoefficient(250.0f, rate);
@@ -120,6 +131,18 @@ void NkbTwinAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock
 
     for (auto& state : channelStates)
         state = {};
+    for (auto& filter : builtInCabinetEq)
+        filter.reset();
+    builtInCabinetEq[0].coefficients = juce::dsp::IIR::Coefficients<float>::makeLowShelf(
+        rate, 115.0f, 0.707f, dbToGain(1.8f));
+    builtInCabinetEq[1].coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+        rate, 390.0f, 0.85f, dbToGain(-1.2f));
+    builtInCabinetEq[2].coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+        rate, 2300.0f, 0.9f, dbToGain(1.3f));
+    builtInCabinetEq[3].coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+        rate, 3700.0f, 1.2f, dbToGain(-1.6f));
+    builtInCabinetEq[4].coefficients = juce::dsp::IIR::Coefficients<float>::makeLowPass(
+        rate, 6100.0f, 0.707f);
     const auto rampSeconds = 0.025;
     ampDrive.reset(rate, rampSeconds);
     ampVolume.reset(rate, rampSeconds);
@@ -136,6 +159,7 @@ void NkbTwinAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock
     od3Level.reset(rate, rampSeconds);
     od3Mix.reset(rate, rampSeconds);
     cabinetIRMix.reset(rate, rampSeconds);
+    reverbMix.reset(rate, rampSeconds);
 
     const auto volume = parameters.getRawParameterValue(volumeId)->load();
     const auto bass = parameters.getRawParameterValue(bassId)->load();
@@ -150,6 +174,10 @@ void NkbTwinAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock
     const auto od3ToneValue = parameters.getRawParameterValue(od3ToneId)->load();
     const auto od3LevelValue = parameters.getRawParameterValue(od3LevelId)->load();
     const auto od3On = parameters.getRawParameterValue(od3EnabledId)->load();
+    const auto reverbMixValue = parameters.getRawParameterValue(reverbMixId)->load();
+    const auto reverbDecayValue = parameters.getRawParameterValue(reverbDecayId)->load();
+    const auto reverbToneValue = parameters.getRawParameterValue(reverbToneId)->load();
+    const auto reverbOn = parameters.getRawParameterValue(reverbEnabledId)->load();
     const auto irOn = parameters.getRawParameterValue(irEnabledId)->load();
 
     ampDrive.setCurrentAndTargetValue(1.25f + volume * 0.18f);
@@ -168,22 +196,33 @@ void NkbTwinAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock
     od3Mix.setCurrentAndTargetValue(od3On >= 0.5f ? 1.0f : 0.0f);
     od3ToneCoefficient = onePoleCoefficient(650.0f + od3ToneValue * 430.0f, rate);
     cabinetIRMix.setCurrentAndTargetValue(irOn >= 0.5f && cabinetIRLoaded.load() ? 1.0f : 0.0f);
+    reverbMix.setCurrentAndTargetValue(reverbOn >= 0.5f ? reverbMixValue * 0.045f : 0.0f);
+
+    juce::Reverb::Parameters reverbParameters;
+    reverbParameters.roomSize = juce::jmap(reverbDecayValue, 0.0f, 10.0f, 0.22f, 0.84f);
+    reverbParameters.damping = juce::jmap(reverbToneValue, 0.0f, 10.0f, 0.9f, 0.22f);
+    reverbParameters.wetLevel = 1.0f;
+    reverbParameters.dryLevel = 0.0f;
+    reverbParameters.width = 1.0f;
+    reverbParameters.freezeMode = 0.0f;
+    postCabinetReverb.setParameters(reverbParameters);
 
     const auto outputChannels = juce::jmax(1, getTotalNumOutputChannels());
     builtInCabinetBuffer.setSize(outputChannels, juce::jmax(1, samplesPerBlock), false, false, true);
     cabinetBlendBuffer.setSize(1, juce::jmax(1, samplesPerBlock), false, false, true);
+    reverbBuffer.setSize(outputChannels, juce::jmax(1, samplesPerBlock), false, false, true);
     cabinetConvolution.prepare({ rate, maxBlockSize, static_cast<juce::uint32>(outputChannels) });
     setLatencySamples(cabinetConvolution.getLatency());
 
     inputMeter.store(0.0f, std::memory_order_relaxed);
     outputLeftMeter.store(0.0f, std::memory_order_relaxed);
     outputRightMeter.store(0.0f, std::memory_order_relaxed);
-    testTonePhase = 0.0f;
 }
 
 void NkbTwinAudioProcessor::releaseResources()
 {
     cabinetConvolution.reset();
+    postCabinetReverb.reset();
 }
 
 bool NkbTwinAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
@@ -224,6 +263,10 @@ void NkbTwinAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
     const auto od3ToneValue = parameters.getRawParameterValue(od3ToneId)->load(std::memory_order_relaxed);
     const auto od3LevelValue = parameters.getRawParameterValue(od3LevelId)->load(std::memory_order_relaxed);
     const auto od3On = parameters.getRawParameterValue(od3EnabledId)->load(std::memory_order_relaxed);
+    const auto reverbMixValue = parameters.getRawParameterValue(reverbMixId)->load(std::memory_order_relaxed);
+    const auto reverbDecayValue = parameters.getRawParameterValue(reverbDecayId)->load(std::memory_order_relaxed);
+    const auto reverbToneValue = parameters.getRawParameterValue(reverbToneId)->load(std::memory_order_relaxed);
+    const auto reverbOn = parameters.getRawParameterValue(reverbEnabledId)->load(std::memory_order_relaxed);
     const auto irOn = parameters.getRawParameterValue(irEnabledId)->load(std::memory_order_relaxed);
 
     ampDrive.setTargetValue(1.25f + volume * 0.18f);
@@ -241,6 +284,15 @@ void NkbTwinAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
     od3Level.setTargetValue(od3LevelValue);
     od3Mix.setTargetValue(od3On >= 0.5f ? 1.0f : 0.0f);
     cabinetIRMix.setTargetValue(irIsLoaded && irOn >= 0.5f ? 1.0f : 0.0f);
+    reverbMix.setTargetValue(reverbOn >= 0.5f ? reverbMixValue * 0.045f : 0.0f);
+    juce::Reverb::Parameters reverbParameters;
+    reverbParameters.roomSize = juce::jmap(reverbDecayValue, 0.0f, 10.0f, 0.22f, 0.84f);
+    reverbParameters.damping = juce::jmap(reverbToneValue, 0.0f, 10.0f, 0.9f, 0.22f);
+    reverbParameters.wetLevel = 1.0f;
+    reverbParameters.dryLevel = 0.0f;
+    reverbParameters.width = 1.0f;
+    reverbParameters.freezeMode = 0.0f;
+    postCabinetReverb.setParameters(reverbParameters);
     driveToneCoefficient = onePoleCoefficient(750.0f + pedalToneValue * 920.0f,
                                                getSampleRate() > 0.0 ? getSampleRate() : 44100.0);
     od3ToneCoefficient = onePoleCoefficient(650.0f + od3ToneValue * 430.0f,
@@ -278,18 +330,7 @@ void NkbTwinAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
         const auto irBlend = cabinetIRMix.getNextValue();
         cabinetBlendBuffer.setSample(0, sample, irBlend);
 
-        const auto useTestTone = testToneEnabled.load(std::memory_order_relaxed);
-        const auto testTone = useTestTone ? 0.1f * std::sin(testTonePhase) : 0.0f;
-        if (useTestTone)
-        {
-            testTonePhase += juce::MathConstants<float>::twoPi * 440.0f / testToneSampleRate;
-            if (testTonePhase >= juce::MathConstants<float>::twoPi)
-                testTonePhase -= juce::MathConstants<float>::twoPi;
-        }
-
-        const auto dry = useTestTone
-                             ? testTone
-                             : (inputChannels > 0 ? buffer.getSample(sourceChannel, sample) : 0.0f);
+        const auto dry = inputChannels > 0 ? buffer.getSample(sourceChannel, sample) : 0.0f;
         inPeak = juce::jmax(inPeak, std::abs(dry));
         const auto ampInput = dry * 1.35f;
 
@@ -361,8 +402,9 @@ void NkbTwinAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
         state.rumbleLow += rumbleCoefficient * (signal - state.rumbleLow);
         signal -= state.rumbleLow;
 
-        // Broad 2x12 speaker voicing: low resonance, restrained low mids,
-        // a clear upper-mid presence band, then a steep top-end roll-off.
+        // Broad 2x12 speaker voicing. The low resonance, gentle low-mid dip,
+        // upper-mid contour, and air roll-off were tuned against the user's
+        // 48 kHz D120 mix IR spectrum; the IR audio itself is not embedded.
         state.speakerBassLow += speakerBassCoefficient * (signal - state.speakerBassLow);
         state.speakerLowMid += speakerLowMidCoefficient * (signal - state.speakerLowMid);
         state.speakerMid += speakerMidCoefficient * (signal - state.speakerMid);
@@ -374,9 +416,11 @@ void NkbTwinAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
         const auto speakerPresence = state.speakerPresence - state.speakerMid;
         const auto speakerUpper = state.speakerAir - state.speakerPresence;
         const auto speakerAir = signal - state.speakerAir;
-        const auto speakerSignal = speakerBass * 1.15f + speakerLowMid * 0.94f
-                                 + speakerMid * 0.88f + speakerPresence * 1.12f
+        auto speakerSignal = speakerBass * 1.18f + speakerLowMid * 1.08f
+                                 + speakerMid * 0.97f + speakerPresence * 1.06f
                                  + speakerUpper * 0.72f + speakerAir * 0.05f;
+        for (auto& filter : builtInCabinetEq)
+            speakerSignal = filter.processSample(speakerSignal);
         const auto builtInCabinet = speakerSignal * volumeGain;
         const auto irInput = signal * volumeGain;
 
@@ -401,6 +445,29 @@ void NkbTwinAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
                 const auto wet = buffer.getSample(channel, sample);
                 buffer.setSample(channel, sample, dry + (wet - dry) * blend);
             }
+    }
+
+    if (outputChannels > 0)
+    {
+        for (auto channel = 0; channel < outputChannels; ++channel)
+            reverbBuffer.copyFrom(channel, 0, buffer, channel, 0, numSamples);
+
+        if (outputChannels > 1)
+            postCabinetReverb.processStereo(reverbBuffer.getWritePointer(0),
+                                            reverbBuffer.getWritePointer(1), numSamples);
+        else
+            postCabinetReverb.processMono(reverbBuffer.getWritePointer(0), numSamples);
+
+        for (auto sample = 0; sample < numSamples; ++sample)
+        {
+            const auto mix = reverbMix.getNextValue();
+            for (auto channel = 0; channel < outputChannels; ++channel)
+            {
+                const auto dry = buffer.getSample(channel, sample);
+                const auto wet = reverbBuffer.getSample(channel, sample);
+                buffer.setSample(channel, sample, dry + (wet - dry) * mix);
+            }
+        }
     }
 
     std::array<float, 2> outputPeaks{};

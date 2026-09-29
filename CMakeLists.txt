@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(NkbTwin VERSION 1.2.0 LANGUAGES C CXX)
+project(NkbTwin VERSION 1.3.0 LANGUAGES C CXX)
 
 include(FetchContent)
 FetchContent_Declare(
