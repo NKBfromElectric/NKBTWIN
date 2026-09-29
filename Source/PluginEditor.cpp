@@ -6,6 +6,8 @@ const std::array<const char*, 4> ampParameterIds{ "volume", "treble", "middle", 
 const std::array<const char*, 4> ampControlLabels{ "VOLUME", "TREBLE", "MIDDLE", "BASS" };
 const std::array<const char*, 3> pedalParameterIds{ "pedalLevel", "pedalDrive", "pedalTone" };
 const std::array<const char*, 3> pedalControlLabels{ "LEVEL", "GAIN", "TONE" };
+const std::array<const char*, 3> od3ParameterIds{ "od3Level", "od3Drive", "od3Tone" };
+const std::array<const char*, 3> od3ControlLabels{ "LEVEL", "DRIVE", "TONE" };
 const std::array<const char*, 3> pageNames{ "EFFECTS", "AMP", "CAB" };
 
 juce::Colour background() { return juce::Colour::fromRGB(15, 18, 24); }
@@ -69,6 +71,14 @@ NkbTwinAudioProcessorEditor::NkbTwinAudioProcessorEditor(NkbTwinAudioProcessor& 
             processor.parameters, pedalParameterIds[index], pedalKnobs[index]);
     }
 
+    for (size_t index = 0; index < od3Knobs.size(); ++index)
+    {
+        configureKnob(od3Knobs[index], od3Labels[index], od3ControlLabels[index]);
+        od3Knobs[index].setName("pedalKnob");
+        od3Attachments[index] = std::make_unique<NkbTwinAudioProcessor::APVTS::SliderAttachment>(
+            processor.parameters, od3ParameterIds[index], od3Knobs[index]);
+    }
+
     for (size_t index = 0; index < pageButtons.size(); ++index)
     {
         pageButtons[index].setButtonText(pageNames[index]);
@@ -95,6 +105,15 @@ NkbTwinAudioProcessorEditor::NkbTwinAudioProcessorEditor(NkbTwinAudioProcessor& 
     addAndMakeVisible(pedalEnableButton);
     pedalEnableAttachment = std::make_unique<NkbTwinAudioProcessor::APVTS::ButtonAttachment>(
         processor.parameters, "pedalEnabled", pedalEnableButton);
+
+    od3EnableButton.setButtonText({});
+    od3EnableButton.setName("od3Footswitch");
+    od3EnableButton.setTooltip("Toggle the OD-3-style overdrive");
+    od3EnableButton.setClickingTogglesState(true);
+    od3EnableButton.setLookAndFeel(&ampLookAndFeel);
+    addAndMakeVisible(od3EnableButton);
+    od3EnableAttachment = std::make_unique<NkbTwinAudioProcessor::APVTS::ButtonAttachment>(
+        processor.parameters, "od3Enabled", od3EnableButton);
 
     cabinetEnableButton.setButtonText("USE LOADED IR");
     cabinetEnableButton.setClickingTogglesState(true);
@@ -141,10 +160,13 @@ NkbTwinAudioProcessorEditor::~NkbTwinAudioProcessorEditor()
         knob.setLookAndFeel(nullptr);
     for (auto& knob : pedalKnobs)
         knob.setLookAndFeel(nullptr);
+    for (auto& knob : od3Knobs)
+        knob.setLookAndFeel(nullptr);
 
     processor.setTestToneEnabled(false);
     brightButton.setLookAndFeel(nullptr);
     pedalEnableButton.setLookAndFeel(nullptr);
+    od3EnableButton.setLookAndFeel(nullptr);
     cabinetEnableButton.setLookAndFeel(nullptr);
     testToneButton.setLookAndFeel(nullptr);
     setLookAndFeel(nullptr);
@@ -261,7 +283,7 @@ void NkbTwinAudioProcessorEditor::AmpLookAndFeel::drawToggleButton(
     if (highlighted || down)
         bounds = bounds.translated(0.0f, 1.0f);
 
-    if (button.getName() == "pedalFootswitch")
+    if (button.getName() == "pedalFootswitch" || button.getName() == "od3Footswitch")
     {
         const auto switchBounds = bounds.withSizeKeepingCentre(
             juce::jmin(bounds.getWidth() - 5.0f, bounds.getHeight() - 10.0f),
@@ -357,8 +379,11 @@ void NkbTwinAudioProcessorEditor::setPage(Page page)
     for (auto& label : ampLabels) label.setVisible(showAmp);
     for (auto& knob : pedalKnobs) knob.setVisible(showEffects);
     for (auto& label : pedalLabels) label.setVisible(showEffects);
+    for (auto& knob : od3Knobs) knob.setVisible(showEffects);
+    for (auto& label : od3Labels) label.setVisible(showEffects);
     brightButton.setVisible(showAmp);
     pedalEnableButton.setVisible(showEffects);
+    od3EnableButton.setVisible(showEffects);
     cabinetEnableButton.setVisible(showCabinet);
     loadIRButton.setVisible(showCabinet);
     clearIRButton.setVisible(showCabinet);
@@ -409,7 +434,8 @@ void NkbTwinAudioProcessorEditor::clearImpulseResponse()
 void NkbTwinAudioProcessorEditor::resetDefaults()
 {
     for (const auto* id : { "volume", "treble", "middle", "bass", "bright",
-                            "pedalDrive", "pedalTone", "pedalLevel", "pedalEnabled", "irEnabled" })
+                            "pedalDrive", "pedalTone", "pedalLevel", "pedalEnabled",
+                            "od3Drive", "od3Tone", "od3Level", "od3Enabled", "irEnabled" })
         processor.setParameterToDefault(id);
     processor.clearCabinetImpulseResponse();
     testToneButton.setToggleState(false, juce::dontSendNotification);
@@ -610,88 +636,106 @@ void NkbTwinAudioProcessorEditor::drawAmpPage(juce::Graphics& g)
 
 void NkbTwinAudioProcessorEditor::drawEffectsPage(juce::Graphics& g)
 {
-    const auto pedal = juce::Rectangle<float>(324.0f, 78.0f, 252.0f, 424.0f);
-    const auto darkBlue = juce::Colour::fromRGB(14, 64, 113);
-    const auto gold = juce::Colour::fromRGB(255, 194, 56);
-
-    g.setColour(juce::Colours::black.withAlpha(0.55f));
-    g.fillRoundedRectangle(pedal.translated(0.0f, 7.0f), 22.0f);
-    g.setGradientFill(juce::ColourGradient(juce::Colour::fromRGB(48, 143, 205),
-                                           pedal.getX(), pedal.getY(),
-                                           darkBlue, pedal.getRight(), pedal.getBottom(), false));
-    g.fillRoundedRectangle(pedal, 22.0f);
-    g.setColour(juce::Colour::fromRGB(108, 190, 229).withAlpha(0.8f));
-    g.drawRoundedRectangle(pedal.reduced(3.0f), 19.0f, 1.4f);
-
-    // Fine horizontal pressed ridges give the enclosure a painted stompbox finish.
-    g.saveState();
-    juce::Path bodyMask;
-    bodyMask.addRoundedRectangle(pedal.reduced(4.0f), 17.0f);
-    g.reduceClipRegion(bodyMask);
-    g.setColour(juce::Colour::fromRGB(190, 225, 241).withAlpha(0.12f));
-    for (int y = 84; y < 496; y += 5)
-        g.drawHorizontalLine(y, pedal.getX() + 9.0f, pedal.getRight() - 9.0f);
-    g.restoreState();
-
-    // Four small enclosure screws.
-    for (const auto screw : { juce::Point<float>{ 337.0f, 92.0f },
-                              juce::Point<float>{ 563.0f, 92.0f },
-                              juce::Point<float>{ 337.0f, 488.0f },
-                              juce::Point<float>{ 563.0f, 488.0f } })
+    const auto drawPedal = [&g](float xOffset, bool isOD3,
+                                const std::array<juce::Slider, 3>& knobs,
+                                const juce::ToggleButton& enable)
     {
-        g.setColour(juce::Colour::fromRGB(9, 44, 77).withAlpha(0.55f));
-        g.fillEllipse(screw.x - 4.0f, screw.y - 4.0f, 8.0f, 8.0f);
-        g.setColour(juce::Colour::fromRGB(179, 207, 220));
-        g.drawLine(screw.x - 2.0f, screw.y + 2.0f, screw.x + 2.0f, screw.y - 2.0f, 0.8f);
-    }
+        g.saveState();
+        g.addTransform(juce::AffineTransform::translation(xOffset, 0.0f));
+        const auto pedal = juce::Rectangle<float>(324.0f, 78.0f, 252.0f, 424.0f);
+        const auto edge = isOD3 ? juce::Colour::fromRGB(126, 91, 0)
+                                : juce::Colour::fromRGB(108, 190, 229);
+        const auto main = isOD3 ? juce::Colour::fromRGB(255, 194, 0)
+                                : juce::Colour::fromRGB(48, 143, 205);
+        const auto shadow = isOD3 ? juce::Colour::fromRGB(190, 127, 0)
+                                  : juce::Colour::fromRGB(14, 64, 113);
+        const auto letteringColour = isOD3 ? juce::Colour::fromRGB(49, 42, 20)
+                                            : juce::Colour::fromRGB(255, 194, 56);
 
-    // Top status light, with a halo when the pedal is engaged.
-    g.setColour(gold);
-    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
-    g.drawText("CHECK", 391, 94, 82, 18, juce::Justification::centred);
-    const auto ledCentre = juce::Point<float>(450.0f, 119.0f);
-    if (pedalEnableButton.getToggleState())
-    {
-        g.setColour(juce::Colour::fromRGB(255, 50, 35).withAlpha(0.25f));
-        g.fillEllipse(ledCentre.x - 11.0f, ledCentre.y - 11.0f, 22.0f, 22.0f);
-    }
-    g.setColour(pedalEnableButton.getToggleState() ? juce::Colour::fromRGB(255, 67, 46)
-                                                  : juce::Colour::fromRGB(87, 31, 37));
-    g.fillEllipse(ledCentre.x - 6.0f, ledCentre.y - 6.0f, 12.0f, 12.0f);
-    g.setColour(juce::Colour::fromRGB(255, 196, 175).withAlpha(0.8f));
-    g.drawEllipse(ledCentre.x - 6.0f, ledCentre.y - 6.0f, 12.0f, 12.0f, 1.0f);
+        g.setColour(juce::Colours::black.withAlpha(0.55f));
+        g.fillRoundedRectangle(pedal.translated(0.0f, 7.0f), 22.0f);
+        g.setGradientFill(juce::ColourGradient(main.brighter(isOD3 ? 0.12f : 0.0f),
+                                               pedal.getX(), pedal.getY(),
+                                               shadow, pedal.getRight(), pedal.getBottom(), false));
+        g.fillRoundedRectangle(pedal, 22.0f);
+        g.setColour(edge.withAlpha(0.85f));
+        g.drawRoundedRectangle(pedal.reduced(3.0f), 19.0f, 1.4f);
 
-    // Labels and values occupy the compact physical pedal layout.
-    g.setColour(gold);
-    g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
-    g.drawText("LEVEL", 337, 218, 96, 16, juce::Justification::centred);
-    g.drawText("GAIN", 467, 218, 96, 16, juce::Justification::centred);
-    g.drawText("TONE", 402, 251, 96, 16, juce::Justification::centred);
-    g.setColour(juce::Colour::fromRGB(242, 246, 248));
-    g.setFont(juce::FontOptions(9.0f, juce::Font::bold));
-    g.drawText(juce::String(pedalKnobs[0].getValue(), 1), 337, 234, 96, 14,
-               juce::Justification::centred);
-    g.drawText(juce::String(pedalKnobs[1].getValue(), 1), 467, 234, 96, 14,
-               juce::Justification::centred);
-    g.drawText(juce::String(pedalKnobs[2].getValue(), 1), 402, 343, 96, 14,
-               juce::Justification::centred);
+        g.saveState();
+        juce::Path bodyMask;
+        bodyMask.addRoundedRectangle(pedal.reduced(4.0f), 17.0f);
+        g.reduceClipRegion(bodyMask);
+        g.setColour((isOD3 ? juce::Colour::fromRGB(255, 246, 183)
+                           : juce::Colour::fromRGB(190, 225, 241)).withAlpha(0.14f));
+        for (int y = 84; y < 496; y += 5)
+            g.drawHorizontalLine(y, pedal.getX() + 9.0f, pedal.getRight() - 9.0f);
+        g.restoreState();
 
-    g.setColour(gold);
-    g.setFont(juce::FontOptions(19.0f, juce::Font::bold));
-    g.drawText("NKB", 371, 371, 158, 24, juce::Justification::centred);
-    g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
-    g.drawText("BLUES DRIVE", 363, 394, 174, 18, juce::Justification::centred);
-    g.setFont(juce::FontOptions(9.0f, juce::Font::bold));
-    g.drawText("BD-2 STYLE", 390, 411, 120, 14, juce::Justification::centred);
+        for (const auto screw : { juce::Point<float>{ 337.0f, 92.0f },
+                                  juce::Point<float>{ 563.0f, 92.0f },
+                                  juce::Point<float>{ 337.0f, 488.0f },
+                                  juce::Point<float>{ 563.0f, 488.0f } })
+        {
+            g.setColour((isOD3 ? juce::Colour::fromRGB(116, 85, 0)
+                               : juce::Colour::fromRGB(9, 44, 77)).withAlpha(0.58f));
+            g.fillEllipse(screw.x - 4.0f, screw.y - 4.0f, 8.0f, 8.0f);
+            g.setColour(isOD3 ? juce::Colour::fromRGB(218, 184, 86)
+                              : juce::Colour::fromRGB(179, 207, 220));
+            g.drawLine(screw.x - 2.0f, screw.y + 2.0f, screw.x + 2.0f, screw.y - 2.0f, 0.8f);
+        }
 
-    // Side-mounted input/output jack hints.
-    for (const auto x : { 324.0f, 568.0f })
-    {
-        g.setColour(juce::Colour::fromRGB(17, 27, 38));
-        g.fillEllipse(x - 5.0f, 303.0f, 10.0f, 10.0f);
-        g.setColour(juce::Colour::fromRGB(155, 170, 179));
-        g.drawEllipse(x - 5.0f, 303.0f, 10.0f, 10.0f, 1.0f);
-    }
+        g.setColour(letteringColour);
+        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+        g.drawText("CHECK", 391, 94, 82, 18, juce::Justification::centred);
+        const auto ledCentre = juce::Point<float>(450.0f, 119.0f);
+        if (enable.getToggleState())
+        {
+            g.setColour(juce::Colour::fromRGB(255, 50, 35).withAlpha(0.25f));
+            g.fillEllipse(ledCentre.x - 11.0f, ledCentre.y - 11.0f, 22.0f, 22.0f);
+        }
+        g.setColour(enable.getToggleState() ? juce::Colour::fromRGB(255, 67, 46)
+                                           : juce::Colour::fromRGB(87, 31, 37));
+        g.fillEllipse(ledCentre.x - 6.0f, ledCentre.y - 6.0f, 12.0f, 12.0f);
+        g.setColour(juce::Colour::fromRGB(255, 196, 175).withAlpha(0.8f));
+        g.drawEllipse(ledCentre.x - 6.0f, ledCentre.y - 6.0f, 12.0f, 12.0f, 1.0f);
+
+        g.setColour(letteringColour);
+        g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+        g.drawText("LEVEL", 337, 218, 96, 16, juce::Justification::centred);
+        g.drawText(isOD3 ? "DRIVE" : "GAIN", 467, 218, 96, 16, juce::Justification::centred);
+        g.drawText("TONE", 402, 251, 96, 16, juce::Justification::centred);
+        g.setColour(isOD3 ? juce::Colour::fromRGB(62, 48, 6)
+                          : juce::Colour::fromRGB(242, 246, 248));
+        g.setFont(juce::FontOptions(9.0f, juce::Font::bold));
+        g.drawText(juce::String(knobs[0].getValue(), 1), 337, 234, 96, 14,
+                   juce::Justification::centred);
+        g.drawText(juce::String(knobs[1].getValue(), 1), 467, 234, 96, 14,
+                   juce::Justification::centred);
+        g.drawText(juce::String(knobs[2].getValue(), 1), 402, 343, 96, 14,
+                   juce::Justification::centred);
+
+        g.setColour(letteringColour);
+        g.setFont(juce::FontOptions(19.0f, juce::Font::bold));
+        g.drawText("NKB", 371, 371, 158, 24, juce::Justification::centred);
+        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+        g.drawText(isOD3 ? "OVERDRIVE" : "BLUES DRIVE", 363, 394, 174, 18,
+                   juce::Justification::centred);
+        g.setFont(juce::FontOptions(9.0f, juce::Font::bold));
+        g.drawText(isOD3 ? "OD-3 STYLE" : "BD-2 STYLE", 390, 411, 120, 14,
+                   juce::Justification::centred);
+
+        for (const auto x : { 324.0f, 568.0f })
+        {
+            g.setColour(juce::Colour::fromRGB(17, 27, 38));
+            g.fillEllipse(x - 5.0f, 303.0f, 10.0f, 10.0f);
+            g.setColour(juce::Colour::fromRGB(155, 170, 179));
+            g.drawEllipse(x - 5.0f, 303.0f, 10.0f, 10.0f, 1.0f);
+        }
+        g.restoreState();
+    };
+
+    drawPedal(-148.0f, false, pedalKnobs, pedalEnableButton);
+    drawPedal(148.0f, true, od3Knobs, od3EnableButton);
 }
 
 void NkbTwinAudioProcessorEditor::drawCabinetPage(juce::Graphics& g)
@@ -776,12 +820,18 @@ void NkbTwinAudioProcessorEditor::resized()
     }
     brightButton.setBounds(151, 133, 22, 28);
 
-    pedalKnobs[0].setBounds(339, 126, 92, 86);
-    pedalKnobs[1].setBounds(469, 126, 92, 86);
-    pedalKnobs[2].setBounds(409, 261, 82, 78);
+    pedalKnobs[0].setBounds(191, 126, 92, 86);
+    pedalKnobs[1].setBounds(321, 126, 92, 86);
+    pedalKnobs[2].setBounds(261, 261, 82, 78);
+    od3Knobs[0].setBounds(487, 126, 92, 86);
+    od3Knobs[1].setBounds(617, 126, 92, 86);
+    od3Knobs[2].setBounds(557, 261, 82, 78);
     for (auto& label : pedalLabels)
         label.setVisible(false); // The compact enclosure carries its own silkscreen labels.
-    pedalEnableButton.setBounds(414, 439, 72, 54);
+    for (auto& label : od3Labels)
+        label.setVisible(false);
+    pedalEnableButton.setBounds(266, 439, 72, 54);
+    od3EnableButton.setBounds(562, 439, 72, 54);
 
     loadIRButton.setBounds(447, 314, 137, 36);
     clearIRButton.setBounds(594, 314, 86, 36);
@@ -799,5 +849,5 @@ void NkbTwinAudioProcessorEditor::timerCallback()
     repaint(outputLeftMeterBounds);
     repaint(outputRightMeterBounds);
     if (currentPage == Page::effects)
-        repaint({ 390, 105, 120, 30 });
+        repaint({ 165, 78, 570, 424 });
 }

@@ -70,6 +70,9 @@ private:
         float pedalStackHigh = 0.0f;
         float pedalToneLow = 0.0f;
         float pedalBufferLow = 0.0f;
+        float od3InputLow = 0.0f;
+        float od3ToneLow = 0.0f;
+        float od3BufferLow = 0.0f;
     };
 
     static APVTS::ParameterLayout createParameterLayout();
@@ -92,7 +95,10 @@ private:
     float pedalStackLowCoefficient = 0.0f;
     float pedalStackHighCoefficient = 0.0f;
     float pedalBufferCoefficient = 0.0f;
+    float od3InputCoefficient = 0.0f;
+    float od3BufferCoefficient = 0.0f;
     float driveToneCoefficient = 0.0f;
+    float od3ToneCoefficient = 0.0f;
     float testToneSampleRate = 44100.0f;
     float testTonePhase = 0.0f;
     juce::String cabinetIRPath;
@@ -107,6 +113,10 @@ private:
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> pedalTone;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> pedalLevel;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> pedalMix;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> od3Drive;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> od3Tone;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> od3Level;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> od3Mix;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> cabinetIRMix;
     std::atomic<float> inputMeter{ 0.0f };
     std::atomic<float> outputLeftMeter{ 0.0f };

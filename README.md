@@ -15,10 +15,11 @@ Twin Reverbのブラックフェイス系クリーンを参考にした、ギタ
 | Middle | 5.0 | 中域 |
 | Bass | 5.0 | 低域 |
 | Bright | オフ | 高域を少し持ち上げる |
-| Blues Driver: Level / Gain / Tone | 各5.0 | エフェクターページのBD系オーバードライブ。初期状態はオフ |
+| Blues Driver: Level / Gain / Tone | 各5.0 | エフェクターページのBD-2系モデル。初期状態はオフ |
+| OverDrive: Level / Drive / Tone | 各5.0 | エフェクターページのOD-3系モデル。初期状態はオフ |
 | Custom IR | オフ | キャビネットページから読み込むキャビネットIR |
 
-エフェクターページで筐体下部のフットスイッチを有効にすると、BD-2の公開回路図と[回路解析記事](https://note.com/paul_white_stone/n/ne03f047e33a8)にある段構成（クリーンな前段、固定トーン整形、ダイオードクリップ、ゲイン段、Tone／Level）を参考にしたDSPモデルがアンプの前段に入ります。Gainの歪み幅を広げました。各トランジスタやダイオードを部品単位で再現するシミュレーションではなく、回路図に基づく近似です。
+エフェクターページではBD-2系の青いペダルの隣にOD-3系の黄色いペダルを並べています。それぞれ独立したフットスイッチとLevel／Gain（OD-3はDrive）／Toneを持ち、両方オンにした場合は **BD-2 → OD-3 → アンプ** の順に処理します。BD-2は公開回路図と[回路解析記事](https://note.com/paul_white_stone/n/ne03f047e33a8)を参考にした段構成です。OD-3はメーカーが説明する[デュアルステージ構成](https://www.boss.info/global/products/od-3/)と、添付されたペダル外観・基板レイアウトを参考に、二段のソフトクリップ、Tone調整、Levelを組み合わせています。どちらも部品単位の回路シミュレーションではなく、回路の特徴を狙ったDSP近似です。
 
 エフェクターページは実機ペダルに近い縦長サイズで、上段にLevel／Gain、中央下段にToneを配置しています。信号のページ順は **エフェクター → アンプ → キャビ** です。
 
@@ -28,7 +29,7 @@ Twin Reverbのブラックフェイス系クリーンを参考にした、ギタ
 
 ## VST3版（Cubase）
 
-GitHub Releasesから `NKB-Twin-VST3-v1.0.0-Windows-x64.zip` をダウンロードして展開し、中の `NKB Twin.vst3` フォルダー全体をVST3プラグインの検索場所へコピーしてください。標準のWindows共有フォルダーは `C:\Program Files\Common Files\VST3` です。Cubaseを再スキャンして、オーディオトラックのインサートエフェクト **NKB Twin** として読み込みます。ギターを接続した入力を選び、出力をステレオに設定してください。
+GitHub Releasesから `NKB-Twin-VST3-v1.1.0-Windows-x64.zip` をダウンロードして展開し、中の `NKB Twin.vst3` フォルダー全体をVST3プラグインの検索場所へコピーしてください。標準のWindows共有フォルダーは `C:\Program Files\Common Files\VST3` です。Cubaseを再スキャンして、オーディオトラックのインサートエフェクト **NKB Twin** として読み込みます。ギターを接続した入力を選び、出力をステレオに設定してください。
 
 ## スタンドアロン版
 

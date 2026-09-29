@@ -15,6 +15,10 @@ constexpr auto pedalDriveId = "pedalDrive";
 constexpr auto pedalToneId = "pedalTone";
 constexpr auto pedalLevelId = "pedalLevel";
 constexpr auto pedalEnabledId = "pedalEnabled";
+constexpr auto od3DriveId = "od3Drive";
+constexpr auto od3ToneId = "od3Tone";
+constexpr auto od3LevelId = "od3Level";
+constexpr auto od3EnabledId = "od3Enabled";
 constexpr auto irEnabledId = "irEnabled";
 constexpr auto cabinetIRPathProperty = "cabinetIRPath";
 constexpr auto stateTag = "NKB_TWIN_STATE_V4";
@@ -73,6 +77,14 @@ NkbTwinAudioProcessor::APVTS::ParameterLayout NkbTwinAudioProcessor::createParam
         juce::ParameterID{ pedalLevelId, 1 }, "Blues Level", knobRange, 5.0f));
     layout.add(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID{ pedalEnabledId, 1 }, "Blues Driver On", false));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ od3DriveId, 1 }, "OverDrive Drive", knobRange, 5.0f));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ od3ToneId, 1 }, "OverDrive Tone", knobRange, 5.0f));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID{ od3LevelId, 1 }, "OverDrive Level", knobRange, 5.0f));
+    layout.add(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID{ od3EnabledId, 1 }, "OverDrive On", false));
     layout.add(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID{ irEnabledId, 1 }, "Custom IR On", false));
 
@@ -102,6 +114,8 @@ void NkbTwinAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock
     pedalStackLowCoefficient = onePoleCoefficient(250.0f, rate);
     pedalStackHighCoefficient = onePoleCoefficient(2100.0f, rate);
     pedalBufferCoefficient = onePoleCoefficient(15000.0f, rate);
+    od3InputCoefficient = onePoleCoefficient(85.0f, rate);
+    od3BufferCoefficient = onePoleCoefficient(15000.0f, rate);
     driveToneCoefficient = onePoleCoefficient(5200.0f, rate);
 
     for (auto& state : channelStates)
@@ -117,6 +131,10 @@ void NkbTwinAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock
     pedalTone.reset(rate, rampSeconds);
     pedalLevel.reset(rate, rampSeconds);
     pedalMix.reset(rate, rampSeconds);
+    od3Drive.reset(rate, rampSeconds);
+    od3Tone.reset(rate, rampSeconds);
+    od3Level.reset(rate, rampSeconds);
+    od3Mix.reset(rate, rampSeconds);
     cabinetIRMix.reset(rate, rampSeconds);
 
     const auto volume = parameters.getRawParameterValue(volumeId)->load();
@@ -128,6 +146,10 @@ void NkbTwinAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock
     const auto pedalToneValue = parameters.getRawParameterValue(pedalToneId)->load();
     const auto pedalLevelValue = parameters.getRawParameterValue(pedalLevelId)->load();
     const auto pedalOn = parameters.getRawParameterValue(pedalEnabledId)->load();
+    const auto od3DriveValue = parameters.getRawParameterValue(od3DriveId)->load();
+    const auto od3ToneValue = parameters.getRawParameterValue(od3ToneId)->load();
+    const auto od3LevelValue = parameters.getRawParameterValue(od3LevelId)->load();
+    const auto od3On = parameters.getRawParameterValue(od3EnabledId)->load();
     const auto irOn = parameters.getRawParameterValue(irEnabledId)->load();
 
     ampDrive.setCurrentAndTargetValue(1.25f + volume * 0.18f);
@@ -140,6 +162,11 @@ void NkbTwinAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock
     pedalTone.setCurrentAndTargetValue(pedalToneValue);
     pedalLevel.setCurrentAndTargetValue(pedalLevelValue);
     pedalMix.setCurrentAndTargetValue(pedalOn >= 0.5f ? 1.0f : 0.0f);
+    od3Drive.setCurrentAndTargetValue(od3DriveValue);
+    od3Tone.setCurrentAndTargetValue(od3ToneValue);
+    od3Level.setCurrentAndTargetValue(od3LevelValue);
+    od3Mix.setCurrentAndTargetValue(od3On >= 0.5f ? 1.0f : 0.0f);
+    od3ToneCoefficient = onePoleCoefficient(650.0f + od3ToneValue * 430.0f, rate);
     cabinetIRMix.setCurrentAndTargetValue(irOn >= 0.5f && cabinetIRLoaded.load() ? 1.0f : 0.0f);
 
     const auto outputChannels = juce::jmax(1, getTotalNumOutputChannels());
@@ -193,6 +220,10 @@ void NkbTwinAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
     const auto pedalToneValue = parameters.getRawParameterValue(pedalToneId)->load(std::memory_order_relaxed);
     const auto pedalLevelValue = parameters.getRawParameterValue(pedalLevelId)->load(std::memory_order_relaxed);
     const auto pedalOn = parameters.getRawParameterValue(pedalEnabledId)->load(std::memory_order_relaxed);
+    const auto od3DriveValue = parameters.getRawParameterValue(od3DriveId)->load(std::memory_order_relaxed);
+    const auto od3ToneValue = parameters.getRawParameterValue(od3ToneId)->load(std::memory_order_relaxed);
+    const auto od3LevelValue = parameters.getRawParameterValue(od3LevelId)->load(std::memory_order_relaxed);
+    const auto od3On = parameters.getRawParameterValue(od3EnabledId)->load(std::memory_order_relaxed);
     const auto irOn = parameters.getRawParameterValue(irEnabledId)->load(std::memory_order_relaxed);
 
     ampDrive.setTargetValue(1.25f + volume * 0.18f);
@@ -205,9 +236,15 @@ void NkbTwinAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
     pedalTone.setTargetValue(pedalToneValue);
     pedalLevel.setTargetValue(pedalLevelValue);
     pedalMix.setTargetValue(pedalOn >= 0.5f ? 1.0f : 0.0f);
+    od3Drive.setTargetValue(od3DriveValue);
+    od3Tone.setTargetValue(od3ToneValue);
+    od3Level.setTargetValue(od3LevelValue);
+    od3Mix.setTargetValue(od3On >= 0.5f ? 1.0f : 0.0f);
     cabinetIRMix.setTargetValue(irIsLoaded && irOn >= 0.5f ? 1.0f : 0.0f);
     driveToneCoefficient = onePoleCoefficient(750.0f + pedalToneValue * 920.0f,
                                                getSampleRate() > 0.0 ? getSampleRate() : 44100.0);
+    od3ToneCoefficient = onePoleCoefficient(650.0f + od3ToneValue * 430.0f,
+                                             getSampleRate() > 0.0 ? getSampleRate() : 44100.0);
 
     auto sourceChannel = 0;
     if (inputChannels > 1)
@@ -234,6 +271,10 @@ void NkbTwinAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
         const auto pedalToneAmount = pedalTone.getNextValue();
         const auto pedalLevelAmount = pedalLevel.getNextValue();
         const auto pedalBlend = pedalMix.getNextValue();
+        const auto od3DriveAmount = od3Drive.getNextValue();
+        const auto od3ToneAmount = od3Tone.getNextValue();
+        const auto od3LevelAmount = od3Level.getNextValue();
+        const auto od3Blend = od3Mix.getNextValue();
         const auto irBlend = cabinetIRMix.getNextValue();
         cabinetBlendBuffer.setSample(0, sample, irBlend);
 
@@ -280,6 +321,25 @@ void NkbTwinAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
         state.pedalBufferLow += pedalBufferCoefficient * (pedalSignal - state.pedalBufferLow);
         pedalSignal = state.pedalBufferLow;
         auto signal = ampInput + (pedalSignal - ampInput) * pedalBlend;
+
+        // OD-3-inspired dual-stage overdrive: input shaping, two soft-clipping
+        // gain stages, a broad Tone roll-off, and a buffered Level control.
+        // This is a musical circuit-inspired model, not a component-level SPICE simulation.
+        state.od3InputLow += od3InputCoefficient * (signal - state.od3InputLow);
+        const auto od3Input = state.od3InputLow * 0.78f + (signal - state.od3InputLow) * 1.08f;
+        auto od3Stage1 = tubeStage(od3Input, 1.15f + od3DriveAmount * 0.25f, 0.055f);
+        od3Stage1 *= 1.0f + od3DriveAmount * 0.52f;
+        od3Stage1 = diodePairTransfer(od3Stage1, 0.92f - od3DriveAmount * 0.045f);
+        auto od3Stage2 = tubeStage(od3Stage1, 1.35f + od3DriveAmount * 0.34f, -0.035f);
+        od3Stage2 = diodePairTransfer(od3Stage2 * (1.0f + od3DriveAmount * 0.28f),
+                                      0.82f - od3DriveAmount * 0.035f);
+        state.od3ToneLow += od3ToneCoefficient * (od3Stage2 - state.od3ToneLow);
+        const auto toneBlend = od3ToneAmount * 0.1f;
+        auto od3Signal = state.od3ToneLow + (od3Stage2 - state.od3ToneLow) * toneBlend;
+        od3Signal *= dbToGain((od3LevelAmount - 5.0f) * 1.8f - 1.0f);
+        state.od3BufferLow += od3BufferCoefficient * (od3Signal - state.od3BufferLow);
+        od3Signal = state.od3BufferLow;
+        signal += (od3Signal - signal) * od3Blend;
 
         // Twin-style clean preamp with modest, asymmetric tube compression.
         signal = tubeStage(signal, drive, 0.035f);

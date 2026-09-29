@@ -52,10 +52,14 @@ private:
     std::array<juce::Slider, 3> pedalKnobs;
     std::array<juce::Label, 3> pedalLabels;
     std::array<std::unique_ptr<NkbTwinAudioProcessor::APVTS::SliderAttachment>, 3> pedalAttachments;
+    std::array<juce::Slider, 3> od3Knobs;
+    std::array<juce::Label, 3> od3Labels;
+    std::array<std::unique_ptr<NkbTwinAudioProcessor::APVTS::SliderAttachment>, 3> od3Attachments;
 
     std::array<juce::TextButton, 3> pageButtons;
     juce::ToggleButton brightButton;
     juce::ToggleButton pedalEnableButton;
+    juce::ToggleButton od3EnableButton;
     juce::ToggleButton cabinetEnableButton;
     juce::ToggleButton testToneButton;
     juce::TextButton loadIRButton;
@@ -65,6 +69,7 @@ private:
 
     std::unique_ptr<NkbTwinAudioProcessor::APVTS::ButtonAttachment> brightAttachment;
     std::unique_ptr<NkbTwinAudioProcessor::APVTS::ButtonAttachment> pedalEnableAttachment;
+    std::unique_ptr<NkbTwinAudioProcessor::APVTS::ButtonAttachment> od3EnableAttachment;
     std::unique_ptr<NkbTwinAudioProcessor::APVTS::ButtonAttachment> cabinetEnableAttachment;
     std::unique_ptr<juce::FileChooser> fileChooser;
 
