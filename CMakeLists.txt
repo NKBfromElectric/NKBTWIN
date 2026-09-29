@@ -25,7 +25,7 @@ juce_add_plugin(NkbTwin
     IS_MIDI_EFFECT FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     COPY_PLUGIN_AFTER_BUILD FALSE
-    FORMATS Standalone
+    FORMATS VST3 Standalone
 )
 
 juce_generate_juce_header(NkbTwin)

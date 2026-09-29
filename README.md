@@ -26,6 +26,10 @@ Twin Reverbのブラックフェイス系クリーンを参考にした、ギタ
 
 入力と出力のレベル差が大きい場合は、オーディオデバイス側で入力ゲインを調整してください。各ノブとスイッチは状態保存に対応します。
 
+## VST3版（Cubase）
+
+GitHub Releasesから `NKB-Twin-VST3-v1.0.0-Windows-x64.zip` をダウンロードして展開し、中の `NKB Twin.vst3` フォルダー全体をVST3プラグインの検索場所へコピーしてください。標準のWindows共有フォルダーは `C:\Program Files\Common Files\VST3` です。Cubaseを再スキャンして、オーディオトラックのインサートエフェクト **NKB Twin** として読み込みます。ギターを接続した入力を選び、出力をステレオに設定してください。
+
 ## スタンドアロン版
 
 ASIOに対応しています。Standalone版を起動し、ウィンドウ上部の **Options → Audio/MIDI Settings...** で Audio device type を **ASIO** に切り替え、利用するASIOドライバーと入出力チャンネルを選んでください。このPCでは **Komplete Audio 6**、**Realtek ASIO**、**Steinberg built-in ASIO Driver**、**Generic Low Latency ASIO Driver** が列挙されました。ドライバーが一覧にない場合は、そのオーディオインターフェース／機器のASIOドライバーをWindowsにインストールしてください。
@@ -38,10 +42,10 @@ ASIOに対応しています。Standalone版を起動し、ウィンドウ上部
 
 ```powershell
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target NkbTwin_Standalone
+cmake --build build --target NkbTwin_Standalone NkbTwin_VST3
 ```
 
-スタンドアロンアプリは `build/NkbTwin_artefacts/Release/Standalone/` に出力されます。
+スタンドアロンアプリは `build/NkbTwin_artefacts/Release/Standalone/`、VST3プラグインは `build/NkbTwin_artefacts/Release/VST3/NKB Twin.vst3` に出力されます。Cubaseで使うには `.vst3` フォルダーをVST3プラグインの検索場所へ置き、プラグインスキャンを実行してください。
 
 JUCEはビルド時に公式リポジトリから取得します。JUCEのライセンス条件を確認して利用してください。
 
